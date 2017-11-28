@@ -40,6 +40,9 @@
 
 (struct position (x y piece) #:transparent #:mutable)
 
+(define (position-change-piece p new-piece)
+  (struct-copy position p [piece new-piece]))
+
 (define A1 (position 0 7 white-rook))
 (define A2 (position 1 7 white-knight))
 (define A3 (position 2 7 white-bishop))
@@ -149,7 +152,10 @@
   (display (virtual-pos x))
   (display ",")
   (display (virtual-pos y))
-  (display " "))
+  (display " ")
+  (if (and (and (<= x 7) (<= y 7)) (and (>= x 0) (>= y 0)))
+      ((position-change-piece (array-ref positions (vector (virtual-pos x) (virtual-pos y))) white-pawn))
+      0))
 
 (big-bang 0
   (on-mouse mouse-event-handler)
