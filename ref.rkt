@@ -137,6 +137,14 @@
                     #[H7 G7 F7 E7 D7 C7 B7 A7]
                     #[H8 G8 F8 E8 D8 C8 B8 A8]]))
 
+(define (real-pos x)
+  (* x 64))
+
+(define (virtual-pos x)
+  (floor (/ x 64)))
+
+(define turn-color "Branco")
+
 (define (positions-change-piece i j piece)
   (define new-pos (position-change-piece (array-ref positions (vector i j)) piece))
   (array-set! positions (vector i j) new-pos))
@@ -147,17 +155,16 @@
      (define new-pos (position-change-background (array-ref positions (vector i j)) bm))
      (array-set! positions (vector i j) new-pos)]))
 
-(define (real-pos x)
-  (* x 64))
-
-(define (virtual-pos x)
-  (floor (/ x 64)))
-
 (define game-scene (empty-scene 512 512))
+(define piece-scene (empty-scene 256 64))
 
 (define (update-game-scene image x y)
   (set! game-scene (place-image/align image x y "left" "top" game-scene))
   game-scene)
+
+(define (update-piece-scene image x y)
+  (set! piece-scene (place-image/align image x y "left" "top" piece-scene))
+  piece-scene)
 
 (define (draw-pos pos)
   (update-game-scene (position-background pos) (real-pos (position-x pos)) (real-pos (position-y pos)))
@@ -195,7 +202,8 @@
             (positions-change-background (- i 1) (- j 1) green-bm)])
         (cond
           [(and (check-sum i 1) (check-sub j 1) (not (equal? empty (position-piece (array-ref positions (vector (+ i 1) (- j 1)))))) (equal? "Preto" (piece-color (position-piece (array-ref positions (vector (+ i 1) (- j 1)))))))
-           (positions-change-background (+ i 1) (- j 1) green-bm)])]
+           (positions-change-background (+ i 1) (- j 1) green-bm)])
+        ]
        [(equal? p-color "Preto")
         (cond
           [(equal? j 1)
@@ -471,6 +479,8 @@
   (define p-color (piece-color (position-piece pos)))
   (change-backgrounds pos))
 
+(define disable-main-game #f)
+
 (define (draw-green pos)
   (possibilities pos))
 
@@ -498,15 +508,93 @@
 (define (selected? pos)
   (and (= (position-x selected-pos) (position-x pos)) (= (position-y selected-pos) (position-y pos))))
 
+(define pawn-x 0)
+(define mouse-hover 256)
+
+(define (draw-white-piece-menu x)
+  (set! piece-scene (empty-scene 256 64))
+  (update-piece-scene selected-bm (real-pos mouse-hover) 0)
+  (update-piece-scene white-rook-bm 0 0)
+  (update-piece-scene white-knight-bm 64 0)
+  (update-piece-scene white-bishop-bm 128 0)
+  (update-piece-scene white-queen-bm 192 0))
+
+(define (draw-black-piece-menu x)
+  (set! piece-scene (empty-scene 256 64))
+  (update-piece-scene selected-bm (real-pos mouse-hover) 0)
+  (update-piece-scene black-rook-bm 0 0)
+  (update-piece-scene black-knight-bm 64 0)
+  (update-piece-scene black-bishop-bm 128 0)
+  (update-piece-scene black-queen-bm 192 0))
+
+(define (white-piece-menu-mouse-event-handler result x y event)
+  (define i (virtual-pos x))
+  (define j (virtual-pos y))
+  (set! mouse-hover i)
+  (cond
+    [(and (equal? event "button-down"))
+     (cond
+       [(= i 0)
+        (positions-change-piece pawn-x 0 white-rook)])
+     (cond
+       [(= i 1)
+        (positions-change-piece pawn-x 0 white-knight)])
+     (cond
+       [(= i 2)
+        (positions-change-piece pawn-x 0 white-bishop)])
+     (cond
+       [(= i 3)
+        (positions-change-piece pawn-x 0 white-queen)])]))
+
+(define (black-piece-menu-mouse-event-handler result x y event)
+  (define i (virtual-pos x))
+  (define j (virtual-pos y))
+  (set! mouse-hover i)
+  (positions-change-piece pawn-x 7 black-queen)
+  (cond
+    [(and (equal? event "button-down"))
+     (cond
+       [(= i 0)
+        (positions-change-piece pawn-x 7 black-rook)])
+     (cond
+       [(= i 1)
+        (positions-change-piece pawn-x 7 black-knight)])
+     (cond
+       [(= i 2)
+        (positions-change-piece pawn-x 7 black-bishop)])
+     (cond
+       [(= i 3)
+        (positions-change-piece pawn-x 7 black-queen)])]))
+
 (define (try-to-select pos)
   (cond
-    [(and (not (equal? (position-piece pos) empty)) (not (equal? green-bm (position-background (array-ref positions (vector (position-x pos) (position-y pos)))))))
-     (select pos)]
-    [(cond
-       [(equal? (position-background pos) green-bm)
-        (positions-change-piece (position-x pos) (position-y pos) (position-piece selected-pos))
-        (positions-change-piece (position-x selected-pos) (position-y selected-pos) empty)
-        (clean-all-backgrounds pos)])]))
+    [(equal? disable-main-game #f)
+     (cond
+       [(and (equal? (piece-color (position-piece pos)) turn-color) (not (equal? (position-piece pos) empty)) (not (equal? green-bm (position-background (array-ref positions (vector (position-x pos) (position-y pos)))))))
+        (select pos)]
+       [(cond
+          [(equal? (position-background pos) green-bm)
+           (positions-change-piece (position-x pos) (position-y pos) (position-piece selected-pos))
+           (positions-change-piece (position-x selected-pos) (position-y selected-pos) empty)
+           (clean-all-backgrounds pos)
+           (cond
+             [(and (equal? (position-piece (array-ref positions (vector (position-x pos) (position-y pos)))) white-pawn) (= (position-y pos) 0))
+              (set! pawn-x (position-x pos))
+              (set! disable-main-game #t)
+              (big-bang 0
+                (on-mouse white-piece-menu-mouse-event-handler)
+                (to-draw draw-white-piece-menu))
+              (set! disable-main-game #f)]
+             [(and (equal? (position-piece (array-ref positions (vector (position-x pos) (position-y pos)))) black-pawn) (= (position-y pos) 7))
+              (set! pawn-x (position-x pos))
+              (set! disable-main-game #t)
+              (big-bang 0
+                (on-mouse black-piece-menu-mouse-event-handler)
+                (to-draw draw-black-piece-menu))
+              (set! disable-main-game #f)])
+           (if (equal? turn-color "Branco")
+                  (set! turn-color "Preto")
+                  (set! turn-color "Branco"))])])]))
 
 (define (handle-button-down x y)
   (define i (virtual-pos x))
