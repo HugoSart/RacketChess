@@ -1,34 +1,45 @@
 #lang racket/base
 
+(require racket/vector)
 (require racket/include)
 (require dyoo-while-loop)
 (require math/array)
 (require 2htdp/image)
 (require 2htdp/universe)
+(require rsound)
+
+(define move-sound (rs-read "sound/move.wav"))
+(define winning-sound (rs-read "sound/winning.wav"))
+(define intimidate-sound (rs-read "sound/intimidate.wav"))
 
 ;; ------------------------------------------------------------------------------------ BITMAP ------------------------------------------------------------------------------------
-  
-(define warning-bm (bitmap "chess-pieces/warning.png"))
-(define selected-bm (bitmap "chess-pieces/selected.png"))
-(define non-selected-bm (bitmap "chess-pieces/non-selected.png"))
-(define green-bm (bitmap "chess-pieces/green.png"))
+
+(define restart-bm (bitmap "image/restart.png"))
+(define ai-bm (bitmap "image/ai.png"))
+(define white-bm (bitmap "image/white.png"))
+(define black-bm (bitmap "image/black.png"))
+(define intimidate-bm (bitmap "image/intimidate.png"))
+(define warning-bm (bitmap "image/chess-pieces/warning.png"))
+(define selected-bm (bitmap "image/chess-pieces/selected.png"))
+(define non-selected-bm (bitmap "image/chess-pieces/non-selected.png"))
+(define green-bm (bitmap "image/chess-pieces/green.png"))
 
 (define selected selected-bm)
 (define non-selected non-selected-bm)
 
-(define white-pawn-bm   (bitmap "chess-pieces/white-pawn.png"))
-(define white-king-bm   (bitmap "chess-pieces/white-king.png"))
-(define white-queen-bm  (bitmap "chess-pieces/white-queen.png"))
-(define white-bishop-bm (bitmap "chess-pieces/white-bishop.png"))
-(define white-knight-bm (bitmap "chess-pieces/white-knight.png"))
-(define white-rook-bm   (bitmap "chess-pieces/white-rook.png"))
-(define black-pawn-bm   (bitmap "chess-pieces/black-pawn.png"))
-(define black-king-bm   (bitmap "chess-pieces/black-king.png"))
-(define black-queen-bm  (bitmap "chess-pieces/black-queen.png"))
-(define black-bishop-bm (bitmap "chess-pieces/black-bishop.png"))
-(define black-knight-bm (bitmap "chess-pieces/black-knight.png"))
-(define black-rook-bm   (bitmap "chess-pieces/black-rook.png"))
-(define chess-grid-bm   (bitmap "chess-pieces/chess-grid.png"))
+(define white-pawn-bm   (bitmap "image/chess-pieces/white-pawn.png"))
+(define white-king-bm   (bitmap "image/chess-pieces/white-king.png"))
+(define white-queen-bm  (bitmap "image/chess-pieces/white-queen.png"))
+(define white-bishop-bm (bitmap "image/chess-pieces/white-bishop.png"))
+(define white-knight-bm (bitmap "image/chess-pieces/white-knight.png"))
+(define white-rook-bm   (bitmap "image/chess-pieces/white-rook.png"))
+(define black-pawn-bm   (bitmap "image/chess-pieces/black-pawn.png"))
+(define black-king-bm   (bitmap "image/chess-pieces/black-king.png"))
+(define black-queen-bm  (bitmap "image/chess-pieces/black-queen.png"))
+(define black-bishop-bm (bitmap "image/chess-pieces/black-bishop.png"))
+(define black-knight-bm (bitmap "image/chess-pieces/black-knight.png"))
+(define black-rook-bm   (bitmap "image/chess-pieces/black-rook.png"))
+(define chess-grid-bm   (bitmap "image/chess-pieces/chess-grid.png"))
 
 (define pawn-bm-code   5)
 (define king-bm-code   4)
@@ -325,8 +336,10 @@
            [(equal? empty-piece (position-piece a-pos))
             (board-set-valid i count4)
             (continue)])
-         (when (not (equal? p-color (piece-color (position-piece a-pos))))
-           (board-set-valid i count4)))
+         (cond
+           [(not (equal? p-color (piece-color (position-piece a-pos))))
+            (board-set-valid i count4)])
+         (break))
   ) ;; Rook moves
 
 (define (bishop-moves i j p-color)
@@ -385,7 +398,7 @@
          (cond
            [(not (equal? p-color (piece-color (position-piece a-pos))))
             (board-set-background i4 j4 green-bm)])
-         )) ;; Bishop moves
+         (break))) ;; Bishop moves
 
 (define (set-avaliable-backgrounds pos)
   (cond [(not (equal? (position-piece pos) empty-piece))
@@ -449,6 +462,53 @@
      (rook-moves i j p-color)
      (bishop-moves i j p-color)])]))
 
+;; ------------------------------------------------------------------------------------ AI --------------------------------------------------------------------------------------
+(define ai-on #t)
+(define ai-color black)
+
+(define (toggle-ai-on)
+  (set! ai-on (not ai-on)))
+
+(define (toggle-ai-color)
+  (if (equal? ai-color white)
+      (set! ai-color black)
+      (set! ai-color white)))
+
+;; Retorna uma lista com todas posições ocupadas pela cor da ai
+(define (owned-positions)
+  (define owned-list (list))
+  (for/array: ([i (in-range 8)])
+    (for/array: ([j (in-range 8)])
+      (if (equal? (board-color i j) ai-color)
+          (set! owned-list (append owned-list (list (board-ref i j))))
+          0)))
+  owned-list)
+
+;; Retorna uma lista com todas as posições que podem ser selecionadas
+(define (avaliable-positions)
+  (define avaliable-list (list))
+  (for/array: ([i (in-range 8)])
+    (for/array: ([j (in-range 8)])
+      (if (equal? (board-background i j) green-bm)
+          (set! avaliable-list (append avaliable-list (list (board-ref i j))))
+          0)))
+  avaliable-list)
+
+;; Realiza o movimento da ia
+(define (ai-move)
+  (define owned-list (owned-positions))
+  (define random-pos (list-ref owned-list (random (length owned-list))))
+  (define avaliable-list (avaliable-positions))
+  (try-to-select random-pos)
+  (while (= (length avaliable-list) 0)
+         (remove random-pos owned-list)
+         (set! random-pos (list-ref owned-list (random (length owned-list))))
+         (try-to-select random-pos)
+         (set! avaliable-list (avaliable-positions)))
+  (define random-avaliable (list-ref avaliable-list (random (length avaliable-list))))
+  (try-to-select random-avaliable)
+   owned-list)
+
 ;; ------------------------------------------------------------------------------------ GAME ------------------------------------------------------------------------------------
 
 ;; Variável que controla o turno atual
@@ -479,11 +539,18 @@
 (define disable-main-game #f)
 
 (define (draw-game-scene time)
-  (set! game-scene (empty-scene 512 512))
+  (set! game-scene (empty-scene 576 512))
   (update-game-scene chess-grid-bm 0 0)
   (for/array: ([i (in-range 8)])
     (for/array: ([j (in-range 8)])
       (draw-pos (board-ref i j))))
+  (cond [ai-on (update-game-scene green-bm 512 64)])
+  (update-game-scene restart-bm 512 0)
+  (update-game-scene ai-bm 512 64)
+  (if (equal? ai-color white)
+      (update-game-scene white-bm 512 128)
+      (update-game-scene black-bm 512 128))
+  (update-game-scene intimidate-bm 512 (* 64 7))
   game-scene)
 
 ;; Posição atual selecionada no tabuleiro (background azul)
@@ -508,8 +575,11 @@
   (update-piece-scene (pieces-bitmaps-ref winner-pawn-color queen)  192 0)
   piece-scene)
 
+(define winner white)
+
+;; Desenha a tela de vitória
 (define (draw-win-scene x)
-  (set! win-scene (text "Winner!" 48 "blue"))
+  (set! win-scene (text (string-append "The " winner " player won the game!") 24 "blue"))
    win-scene)
 
 (define (piece-menu-mouse-event-handler result x y event)
@@ -538,10 +608,15 @@
 
 (define (start-win-scene color-code)
   (set! disable-main-game #t)
+  (play winning-sound)
+  (if (equal? color-code white)
+      (set! winner "white")
+      (set! winner "black"))
   (big-bang 0
     (name "Victory")
     (to-draw draw-win-scene))
-  (set! disable-main-game #f))
+  (stop)
+  (set! disable-main-game #f)) 
 
 ;; Seleciona a posição
 (define (select pos)
@@ -551,20 +626,13 @@
   (board-set-background (position-i pos) (position-j pos) selected)
   (set! selected-pos pos))
 
-;; Movimento da IA
-(define (make-ai-move)
-  (for/array: ([i (in-range 8)])
-    (for/array: ([j (in-range 8)])
-      (set-avaliable-backgrounds (board-ref i j)))))
-
 ;; Termina o turno da cor atual
 (define (end-turn)
   (if (equal? turn-color white)
       (set! turn-color black)
       (set! turn-color white))
-  ;;(if (equal? turn-color black)
-      ;;(make-ai-move) 0))
-    )  
+  (if (and (equal? turn-color ai-color) (equal? ai-on #t))
+      (ai-move) 0)) 
 ;; Tenta selecionar uma posição. Falha se disable-main-game for true ou se o turno não corresponder a peça selecionada.
 (define (try-to-select pos)
   (define i (position-i pos))
@@ -581,25 +649,42 @@
            (board-set-piece i j (position-piece selected-pos))
            (board-set-piece (position-i selected-pos) (position-j selected-pos) empty-piece)
            (board-reset-background)
+           (play move-sound)
            (cond ;; Peão chegou ao final do tabuleiro
              [(and (equal? (board-name i j) pawn) (or (= j 0) (= j 7)))
               (set! winner-pawn-i i)
               (set! winner-pawn-j j)
               (set! winner-pawn-color (board-color i j))
-              (start-piece-menu)])
+              (if (and ai-on (equal? turn-color ai-color))
+                  (board-set-piece i j (pieces-ref ai-color queen))
+                  (start-piece-menu))])
           (end-turn)])])]))
+
+(define (restart-game)
+  (board-reset-pieces)
+  (board-reset-background)
+  (set! turn-color white))
+
+(define (intimidate-opponent)
+  (play intimidate-sound))
 
 (define (handle-button-down x y)
   (define i (board-pos x))
   (define j (board-pos y))
-  (try-to-select (board-ref i j)))
+  (cond
+    [(= i 8)
+     (cond
+       [(= j 0) (restart-game)]
+       [(= j 1) (toggle-ai-on)]
+       [(= j 2) (toggle-ai-color)]
+       [(= j 7) (intimidate-opponent)])]
+    [else (try-to-select (board-ref i j))]))
 
 (define (mouse-event-handler result x y event)
   (define i (board-pos x))
   (define j (board-pos y))
-  (if (and (equal? event "button-down") (and (and (<= i 7) (<= j 7)) (and (>= i 0) (>= j 0))))
-      (handle-button-down x y)
-      0))
+  (if (and (equal? event "button-down") (and (and (<= i 8) (<= j 7)) (and (>= i 0) (>= j 0))))
+            (handle-button-down x y) 0))
 
 (define (start-game)
   (big-bang 0
