@@ -14,6 +14,7 @@
 
 ;; ------------------------------------------------------------------------------------ BITMAP ------------------------------------------------------------------------------------
 
+(define mouse-hover-bm (bitmap "image/mouse-hover.png"))
 (define restart-bm (bitmap "image/restart.png"))
 (define ai-bm (bitmap "image/ai.png"))
 (define white-bm (bitmap "image/white.png"))
@@ -463,7 +464,7 @@
      (bishop-moves i j p-color)])]))
 
 ;; ------------------------------------------------------------------------------------ AI --------------------------------------------------------------------------------------
-(define ai-on #t)
+(define ai-on #f)
 (define ai-color black)
 
 (define (toggle-ai-on)
@@ -538,9 +539,11 @@
 ;; Se verdadeiro, não é possível realizar nenhuma ação no jogo
 (define disable-main-game #f)
 
+;; Desenha a tela principal do jogo
 (define (draw-game-scene time)
   (set! game-scene (empty-scene 576 512))
   (update-game-scene chess-grid-bm 0 0)
+  (update-game-scene mouse-hover-bm (real-pos (vector-ref mouse-hover-coord 0)) (real-pos (vector-ref mouse-hover-coord 1)))
   (for/array: ([i (in-range 8)])
     (for/array: ([j (in-range 8)])
       (draw-pos (board-ref i j))))
@@ -566,6 +569,7 @@
 (define winner-pawn-color empty)
 (define mouse-hover 256)
 
+;; Desenha a tela de seleção de peças
 (define (draw-piece-menu x)
   (set! piece-scene (empty-scene 256 64))
   (update-piece-scene selected-bm (real-pos mouse-hover) 0)
@@ -575,6 +579,7 @@
   (update-piece-scene (pieces-bitmaps-ref winner-pawn-color queen)  192 0)
   piece-scene)
 
+;; Cor que será mostrada como vencedora quando o rei for capturado
 (define winner white)
 
 ;; Desenha a tela de vitória
@@ -582,6 +587,7 @@
   (set! win-scene (text (string-append "The " winner " player won the game!") 24 "blue"))
    win-scene)
 
+;; Função que manipula o evento de mouse do menu de seleção de peças
 (define (piece-menu-mouse-event-handler result x y event)
   (define i (board-pos x)) (define j (board-pos y))
   (set! mouse-hover i)
@@ -606,6 +612,7 @@
     (to-draw draw-piece-menu))
   (set! disable-main-game #f))
 
+;; Inicia a tela que mostra o vencedor
 (define (start-win-scene color-code)
   (set! disable-main-game #t)
   (play winning-sound)
@@ -660,13 +667,18 @@
                   (start-piece-menu))])
           (end-turn)])])]))
 
+;; Reinicia o jogo
 (define (restart-game)
   (board-reset-pieces)
   (board-reset-background)
   (set! turn-color white))
 
+;; Intimida o oponente
 (define (intimidate-opponent)
   (play intimidate-sound))
+
+;; Contém a posição atual do mouse na tela
+(define mouse-hover-coord (vector 10 10))
 
 (define (handle-button-down x y)
   (define i (board-pos x))
@@ -683,6 +695,7 @@
 (define (mouse-event-handler result x y event)
   (define i (board-pos x))
   (define j (board-pos y))
+  (set! mouse-hover-coord (vector i j))
   (if (and (equal? event "button-down") (and (and (<= i 8) (<= j 7)) (and (>= i 0) (>= j 0))))
             (handle-button-down x y) 0))
 
